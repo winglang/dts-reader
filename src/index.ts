@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { Parser } from './decl';
+import { Parser } from './parser';
 
 const dtsFile = process.argv[2];
 if (!dtsFile) {
@@ -9,9 +9,13 @@ if (!dtsFile) {
 }
 
 const parser = new Parser(dtsFile);
-const types = parser.parse();
+const types = parser.parseSource();
 
-const outfile = `${path.basename(path.dirname(dtsFile))}.types.json`;
+const outdir = '.output';
+
+fs.mkdirSync(outdir, { recursive: true });
+
+const outfile = path.join(outdir, `${path.basename(path.dirname(dtsFile))}.types.json`);
 
 fs.writeFileSync(outfile, JSON.stringify(types, undefined, 2));
 

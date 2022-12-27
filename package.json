@@ -1,5 +1,8 @@
 {
   "name": "bring-ts-research",
+  "bin": {
+    "dts-to-json": "bin/dts-to-json"
+  },
   "scripts": {
     "build": "npx projen build",
     "bump": "npx projen bump",

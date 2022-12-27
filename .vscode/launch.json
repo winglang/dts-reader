@@ -12,7 +12,7 @@
         "<node_internals>/**"
       ],
       "program": "${workspaceFolder}/lib/index.js",
-      "args": ["@types/stack-utils"],
+      "args": ["./DefinitelyTyped/types/perfy/index.d.ts"],
       "preLaunchTask": "tsc: build - tsconfig.json",
       "outFiles": [
         "${workspaceFolder}/lib/**/*.js"

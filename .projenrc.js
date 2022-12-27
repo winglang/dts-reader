@@ -5,5 +5,6 @@ const project = new typescript.TypeScriptProject({
   packageManager: javascript.NodePackageManager.NPM,
   deps: ['typescript', '@jsii/spec'],
   devDeps: ['axios'],
+  gitignore: ['.output'],
 });
 project.synth();
