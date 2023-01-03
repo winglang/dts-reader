@@ -4,7 +4,7 @@ import { Parser } from './parser';
 
 const dtsFile = process.argv[2];
 if (!dtsFile) {
-  console.error(`Usage: ${path.basename(process.argv[1])} <package-name>`);
+  console.error(`Usage: ${path.basename(process.argv[1])} <d.ts-file>`);
   process.exit(1);
 }
 

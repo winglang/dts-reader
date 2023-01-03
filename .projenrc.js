@@ -6,6 +6,8 @@ const project = new typescript.TypeScriptProject({
   packageManager: javascript.NodePackageManager.NPM,
   deps: ['typescript', '@jsii/spec'],
   devDeps: ['axios'],
+  license: 'MIT',
+  copyrightOwner: 'Monada, Inc.',
   gitignore: ['.output'],
 });
 project.synth();

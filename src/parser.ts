@@ -35,24 +35,30 @@ export class Parser {
       }
     }
 
-    // causes serialization to happen
-    JSON.stringify(types);
-
-    console.log('Before');
     types.push(...this.additionalDeclarations);
-    console.log('After');
 
     return types;
   }
 
-  addType(typeNode: ts.TypeNode) {
-    console.log('addType', typeNode.getText());
-    const sym = this.checker.getTypeFromTypeNode(typeNode).getSymbol();
-    if (!sym) {
-      throw new Error(`Could not find symbol for type: ${typeNode.getText()}`);
+  addType(typeNode?: ts.TypeNode) {
+    if (!typeNode) {
+      return undefined;
     }
 
-    this.additionalDeclarations.push(...this.parseSymbol(sym));
+    const type = this.checker.getTypeFromTypeNode(typeNode);
+    const sym = type.symbol ?? type.aliasSymbol;
+    if (sym) {
+      this.additionalDeclarations.push(...this.parseSymbol(sym));
+      return this.parseTypeNode(typeNode);
+    }
+
+    // use getFlags to check if type is a primitive
+    // eslint-disable-next-line no-bitwise
+    if (type.flags & ts.TypeFlags.String) {
+      return new Primitive(this, typeNode);
+    }
+
+    throw new Error(`Could not find symbol for type: ${typeNode.getText()}`);
   }
 
   // look for an ExportAssignment node in the source file
@@ -176,13 +182,16 @@ export class Parser {
     return modifiers.map(m => ts.SyntaxKind[m.kind]);
   }
 
-  parseType(t: ts.TypeNode | undefined): Type<ts.TypeNode> | undefined {
+  parseTypeNode(t: ts.TypeNode | undefined, ref = false): Type<ts.TypeNode> | undefined {
     if (!t) {
       return undefined;
     }
 
     switch (t.kind) {
       case ts.SyntaxKind.TypeReference:
+        if (ref) {
+          return undefined;
+        }
         return parseTypeReference(this, t as ts.TypeReferenceNode);
 
       case ts.SyntaxKind.UnionType:
@@ -207,7 +216,7 @@ export class Parser {
         return new TupleType(this, t as ts.TupleTypeNode);
 
       case ts.SyntaxKind.ParenthesizedType:
-        return this.parseType((t as ts.ParenthesizedTypeNode).type);
+        return this.parseTypeNode((t as ts.ParenthesizedTypeNode).type);
 
       case ts.SyntaxKind.ConstructorType:
         return new FunctionType(this, t as ts.ConstructorTypeNode);
@@ -243,14 +252,14 @@ export class Parser {
     return {
       name: p.name.getText(),
       optional: p.questionToken !== undefined,
-      type: this.parseType(p.type),
+      type: this.parseTypeNode(p.type),
     };
   }
 
   parseTypeParameter(p: ts.TypeParameterDeclaration) {
     return {
       name: p.name.getText(),
-      constraint: this.parseType(ts.getEffectiveConstraintOfTypeParameter(p)),
+      constraint: this.parseTypeNode(ts.getEffectiveConstraintOfTypeParameter(p)),
     };
   }
 
@@ -259,13 +268,13 @@ export class Parser {
       case ts.SyntaxKind.ExtendsKeyword:
         return {
           kind: 'extends',
-          types: clause.types.map(t => this.parseType(t)),
+          types: clause.types.map(t => this.parseTypeNode(t)),
         };
 
       case ts.SyntaxKind.ImplementsKeyword:
         return {
           kind: 'implements',
-          types: clause.types.map(t => this.parseType(t)),
+          types: clause.types.map(t => this.parseTypeNode(t)),
         };
     }
   }
@@ -366,7 +375,7 @@ class Function extends Declaration<ts.FunctionDeclaration | ts.CallSignatureDecl
 class TypeAlias extends Declaration<ts.TypeAliasDeclaration> {
   json() {
     return {
-      type: this.parser.parseType(this.declaration.type),
+      type: this.parser.parseTypeNode(this.declaration.type),
     };
   }
 }
@@ -430,13 +439,10 @@ class ImportEquals extends Declaration<ts.ImportEqualsDeclaration> {
 
 class Variable extends Declaration<ts.VariableDeclaration> {
   json() {
-    if (this.declaration.type) {
-      this.parser.addType(this.declaration.type);
-    }
-
+    let type = this.parser.addType(this.declaration.type);
     return {
       name: this.declaration.name.getText(),
-      type: this.parser.parseType(this.declaration.type),
+      type: type,
       initializer: this.declaration.initializer?.getText(),
     };
   }
@@ -456,7 +462,7 @@ class FunctionTypeDeclaration extends Declaration<ts.FunctionTypeNode> {
   json() {
     return {
       parameters: this.declaration.parameters.map(p => this.parser.parseParameter(p)),
-      type: this.parser.parseType(this.declaration.type),
+      type: this.parser.parseTypeNode(this.declaration.type),
     };
   }
 }
@@ -507,7 +513,7 @@ class TypeReference extends Type<ts.TypeReferenceNode> {
   json() {
     this.parser.addType(this.node);
 
-    return this.node.typeName.getText();
+    return { reference: this.node.typeName.getText() };
   }
 }
 
@@ -517,7 +523,7 @@ class GenericTypeReference extends Type<ts.TypeReferenceNode> {
   json() {
     return {
       type: this.node.typeName.getText(),
-      generic: this.node.typeArguments?.map(t => this.parser.parseType(t)),
+      generic: this.node.typeArguments?.map(t => this.parser.parseTypeNode(t)),
     };
   }
 }
@@ -526,7 +532,7 @@ class UnionType extends Type<ts.UnionTypeNode> {
   kind: TypeKind = 'union';
 
   json() {
-    return this.node.types.map(t => this.parser.parseType(t));
+    return this.node.types.map(t => this.parser.parseTypeNode(t));
   }
 }
 
@@ -543,7 +549,7 @@ class TypeQuery extends Type<ts.TypeQueryNode> {
 
   json() {
     return {
-      typeArguments: this.node.typeArguments?.map(t => this.parser.parseType(t)),
+      typeArguments: this.node.typeArguments?.map(t => this.parser.parseTypeNode(t)),
       exprName: this.node.exprName.getText(),
     };
   }
@@ -556,7 +562,7 @@ class FunctionType extends Type<ts.FunctionTypeNode | ts.ConstructorTypeNode> {
     return {
       parameters: this.node.parameters.map(p => this.parser.parseParameter(p)),
       typeParameters: this.node.typeParameters?.map(t => this.parser.parseTypeParameter(t)),
-      return: this.parser.parseType(this.node.type),
+      return: this.parser.parseTypeNode(this.node.type),
     };
   }
 }
@@ -565,7 +571,7 @@ class TupleType extends Type<ts.TupleTypeNode> {
   kind: TypeKind = 'tuple';
 
   json() {
-    return this.node.elements.map(t => this.parser.parseType(t));
+    return this.node.elements.map(t => this.parser.parseTypeNode(t));
   }
 }
 
@@ -583,7 +589,7 @@ class IntersectionType extends Type<ts.IntersectionTypeNode> {
   kind: TypeKind = 'intersection';
 
   json() {
-    return this.node.types.map(t => this.parser.parseType(t));
+    return this.node.types.map(t => this.parser.parseTypeNode(t));
   }
 }
 
@@ -599,7 +605,7 @@ class ArrayType extends Type<ts.ArrayTypeNode> {
   kind: TypeKind = 'array';
 
   json() {
-    return this.parser.parseType(this.node.elementType);
+    return this.parser.parseTypeNode(this.node.elementType);
   }
 }
 
@@ -609,7 +615,7 @@ class ExpressionWithTypeArguments extends Type<ts.ExpressionWithTypeArguments> {
   json() {
     return {
       expr: this.node.expression.getText(),
-      typeArguments: this.node.typeArguments?.map(t => this.parser.parseType(t)),
+      typeArguments: this.node.typeArguments?.map(t => this.parser.parseTypeNode(t)),
     };
   }
 }
@@ -646,7 +652,7 @@ class IndexSignature extends Member<ts.IndexSignatureDeclaration> {
   json() {
     return {
       parameters: this.e.parameters.map(p => this.parser.parseParameter(p)),
-      type: this.parser.parseType(this.e.type),
+      type: this.parser.parseTypeNode(this.e.type),
     };
   }
 }
@@ -656,7 +662,7 @@ class Method extends Member<ts.MethodDeclaration | ts.SignatureDeclarationBase> 
     return {
       name: this.e.name?.getText(),
       optional: (this.e as ts.MethodDeclaration).questionToken !== undefined,
-      return: this.parser.parseType(this.e.type),
+      return: this.parser.parseTypeNode(this.e.type),
       parameters: this.e.parameters.map(p => this.parser.parseParameter(p)),
     };
   }
@@ -667,7 +673,7 @@ class Property extends Member<ts.PropertyDeclaration | ts.PropertySignature> {
     return {
       name: this.e.name.getText(),
       optional: this.e.questionToken !== undefined,
-      type: this.parser.parseType(this.e.type),
+      type: this.parser.parseTypeNode(this.e.type),
     };
   }
 }
