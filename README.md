@@ -5,6 +5,8 @@
 **STATUS**: this is a prototype, and not fully implemented. This means that there might be modules
 that cannot be read and type information that might not be included in the output.
 
+We should look into https://ts-morph.com/ as an alternative way to read typescript definitions.
+
 ## Usage
 
 Clone the repo:
