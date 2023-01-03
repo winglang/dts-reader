@@ -20,23 +20,12 @@ export class Parser {
     this.checker = checker;
   }
 
-  addType(typeNode: ts.TypeNode) {
-    console.log('addType', typeNode.getText());
-    const sym = this.checker.getTypeFromTypeNode(typeNode).getSymbol();
-    if (!sym) {
-      throw new Error(`Could not find symbol for type: ${typeNode.getText()}`);
-    }
-
-    this.additionalDeclarations.push(...this.parseSymbol(sym));
-  }
-
   parseSource(): Declaration<ts.Declaration>[] {
     const sourceFileSymbol = this.checker.getSymbolAtLocation(this.sourceFile);
     if (!sourceFileSymbol) {
       throw new Error(`Could not find source file symbol: ${this.filePath}`);
     }
     const exports = this.checker.getExportsOfModule(sourceFileSymbol);
-
     const types = exports.map(e => this.parseSymbol(e)).flat();
     const exportAssignment = this.tryFindExportAssignment();
     if (exportAssignment) {
@@ -54,6 +43,16 @@ export class Parser {
     console.log('After');
 
     return types;
+  }
+
+  addType(typeNode: ts.TypeNode) {
+    console.log('addType', typeNode.getText());
+    const sym = this.checker.getTypeFromTypeNode(typeNode).getSymbol();
+    if (!sym) {
+      throw new Error(`Could not find symbol for type: ${typeNode.getText()}`);
+    }
+
+    this.additionalDeclarations.push(...this.parseSymbol(sym));
   }
 
   // look for an ExportAssignment node in the source file

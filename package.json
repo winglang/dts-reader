@@ -1,7 +1,8 @@
 {
-  "name": "bring-ts-research",
+  "name": "dts-reader",
+  "description": "Reads .d.ts files and generates a JSON representation of the API",
   "bin": {
-    "dts-to-json": "bin/dts-to-json"
+    "dts-reader": "bin/dts-reader"
   },
   "scripts": {
     "build": "npx projen build",

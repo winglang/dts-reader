@@ -1,7 +1,8 @@
 const { typescript, javascript } = require('projen');
 const project = new typescript.TypeScriptProject({
   defaultReleaseBranch: 'main',
-  name: 'bring-ts-research',
+  name: 'dts-reader',
+  description: 'Reads .d.ts files and generates a JSON representation of the API',
   packageManager: javascript.NodePackageManager.NPM,
   deps: ['typescript', '@jsii/spec'],
   devDeps: ['axios'],
